@@ -1,0 +1,101 @@
+{
+  "variables": {
+    "box_os":         "linux",
+    "box_ostype":     "centos",
+    "box_osversion":  "7.7.1908",
+    "box_nick":       "7",
+    "box_arch":       "x64",
+    "box_type":       "base",
+    "box_memory":     "2048",
+    "box_cpus":       "2",
+
+    "iso_arch":       "x86_64",
+    "iso_type":       "NetInstall-1908",
+    "iso_checksum":   "6ffa7ad44e8716e4cd6a5c3a85ba5675a935fc0448c260f43b12311356ba85ad",
+
+    "ssh_user":       "vagrant",
+    "ssh_pass":       "vagrant",
+    "hostname":       "centos-7"
+  },
+
+  "builders": [
+    {
+      "type":               "vmware-iso",
+      "vm_name":            "{{ user `box_ostype` }}-{{ user `box_osversion` }}-{{ user `box_arch` }}-{{ user `box_type` }}",
+      "guest_os_type":      "centos",
+      "disk_size":          "30000",
+      "output_directory":   "output-vmware/{{ user `box_os` }}/{{ user `box_ostype` }}/{{ user `box_osversion` }}",
+
+      "network_adapter_type": "vmxnet3",
+
+      "iso_url":            "http://ftp.bme.hu/centos/{{ user `box_osversion` }}/isos/{{ user `iso_arch` }}/CentOS-{{ user `box_nick` }}-{{ user `iso_arch` }}-{{ user `iso_type` }}.iso",
+      "iso_checksum":       "{{ user `iso_checksum` }}",
+      "iso_checksum_type":  "sha256",
+
+      "http_directory":     "http",
+
+      "ssh_username":       "root",
+      "ssh_password":       "{{ user `ssh_pass` }}",
+      "ssh_wait_timeout":   "100000s",
+
+      "shutdown_command":   "echo {{ user `ssh_user` }} | sudo halt -p",
+
+      "tools_upload_flavor": "linux",
+
+      "vmx_data": {
+        "memsize":                    "{{ user `box_memory` }}",
+        "numvcpus":                   "{{ user `box_cpus` }}",
+        "vhv.enable":                 "true"
+      },
+
+      "boot_wait": "5s",
+      "boot_key_interval": "20ms",
+      "boot_command": [
+        "<tab> ",
+        "text ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks-{{ user `box_osversion` }}.cfg ",
+        "lang=en_US.UTF-8 ",
+        "<enter><wait>"
+      ]
+    }
+  ],
+
+  "provisioners": [
+    {
+      "type": "shell",
+      "pause_before": "30s",
+      "expect_disconnect": true,
+      "execute_command": "echo 'root' | sh '{{ .Path }}'",
+      "scripts": [
+        "scripts/common/vmware-tools.sh",
+        "scripts/centos/elrepo.sh"
+      ]
+    },
+    {
+      "type": "shell",
+      "execute_command": "echo 'root' | sh '{{ .Path }}'",
+      "scripts": [
+        "scripts/common/sshd.sh",
+        "scripts/common/sudoers.sh",
+        "scripts/common/vagrant.sh",
+        "scripts/centos/locale.sh",
+        "scripts/centos/ansible.sh"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "yum clean all"
+      ]
+    }
+  ],
+  "post-processors": [
+    [
+      {
+        "type": "shell-local",
+        "inline": [
+          "ovftool --diskMode=thin --compress=9 --prop:product=\"{{ user `box_ostype` }} {{ user `box_nick` }} {{ user `box_arch` }} {{ user `box_type` }} image\" --prop:version=\"{{user `box_nick`}}\" --prop:fullVersion=\"{{user `box_osversion`}}\" --annotation=\"{{ user `box_ostype` }} {{ user `box_osversion` }} {{ user `box_arch` }} {{ user `box_type` }} image.\" \"output-vmware/{{ user `box_os` }}/{{ user `box_ostype` }}/{{ user `box_osversion` }}/{{ user `box_ostype` }}-{{ user `box_osversion` }}-{{ user `box_arch` }}-{{ user `box_type` }}.vmx\" \"output-vmware/{{ user `box_os` }}/{{ user `box_ostype` }}/{{ user `box_ostype` }}-{{ user `box_osversion` }}-{{ user `box_arch` }}-{{ user `box_type` }}.ova\""
+        ]
+      }
+    ]
+  ]
+}
